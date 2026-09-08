@@ -1,0 +1,46 @@
+{
+  "manifest_version": 3,
+  "name": "HoH Token & API Console",
+  "version": "0.1.0",
+  "description": "Copy your own Heroes of History session token and poke at the game API. Everything stays in your browser.",
+  "permissions": [
+    "storage",
+    "declarativeNetRequestWithHostAccess"
+  ],
+  "host_permissions": [
+    "https://*.heroesofhistorygame.com/*"
+  ],
+  "background": {
+    "service_worker": "src/background.js",
+    "type": "module"
+  },
+  "action": {
+    "default_title": "HoH Token & API Console",
+    "default_popup": "content/popup.html",
+    "default_icon": {
+      "16": "icons/icon16.png",
+      "32": "icons/icon32.png",
+      "48": "icons/icon48.png",
+      "128": "icons/icon128.png"
+    }
+  },
+  "icons": {
+    "16": "icons/icon16.png",
+    "32": "icons/icon32.png",
+    "48": "icons/icon48.png",
+    "128": "icons/icon128.png"
+  },
+  "content_scripts": [
+    {
+      "world": "MAIN",
+      "matches": ["https://*.heroesofhistorygame.com/*"],
+      "run_at": "document_start",
+      "js": ["src/inject.js"]
+    },
+    {
+      "matches": ["https://*.heroesofhistorygame.com/*"],
+      "run_at": "document_start",
+      "js": ["src/content.js"]
+    }
+  ]
+}

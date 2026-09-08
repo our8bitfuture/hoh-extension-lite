@@ -1,0 +1,60 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <link rel="stylesheet" href="console.css">
+  <title>HoH API Console</title>
+</head>
+<body>
+  <header class="topbar">
+    <h1>HoH API Console</h1>
+    <div class="topbar-meta">
+      <span id="sessionChip" class="chip bad">no session</span>
+      <span id="sessionDetail" class="muted"></span>
+      <button id="copyTokenButton" class="ghost" disabled
+              title="Copy X-AUTH-TOKEN to the clipboard — it is never written into a request body or a download">copy token</button>
+    </div>
+  </header>
+
+  <main class="layout">
+    <aside class="sidebar">
+      <h2>Endpoints</h2>
+      <ul id="endpointList" class="endpoint-list"></ul>
+    </aside>
+
+    <section class="workspace">
+      <div class="panel">
+        <div class="request-line">
+          <span class="method">POST</span>
+          <input id="pathInput" type="text" spellcheck="false" placeholder="/game/startup">
+          <select id="acceptSelect" title="Accept header">
+            <option value="application/json">JSON</option>
+            <option value="application/x-protobuf">protobuf</option>
+          </select>
+          <button id="sendButton" class="primary">Send</button>
+        </div>
+        <p id="endpointNote" class="note hidden"></p>
+
+        <div class="body-builder">
+          <span class="section-title">Request body (protobuf)</span>
+          <div id="fieldRows" class="field-rows"></div>
+          <button id="addFieldButton" class="ghost">+ field</button>
+        </div>
+      </div>
+
+      <div class="panel response-panel">
+        <div class="response-bar">
+          <span id="responseMeta" class="muted">No response yet.</span>
+          <span class="response-actions">
+            <button id="copyJsonButton" class="ghost" disabled>Copy JSON</button>
+            <button id="downloadButton" class="ghost" disabled>Download</button>
+          </span>
+        </div>
+        <pre id="responseBody" class="response-body placeholder">Pick an endpoint on the left, then Send.</pre>
+      </div>
+    </section>
+  </main>
+
+  <script type="module" src="console.js"></script>
+</body>
+</html>
