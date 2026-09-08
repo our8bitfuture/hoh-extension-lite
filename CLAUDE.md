@@ -9,9 +9,8 @@
       git config user.email "291346298+our8bitfuture@users.noreply.github.com"
 
   Verify both are set in every new worktree before committing.
-- Do NOT add any co-authoring notes to commit messages or PR bodies. No
-  `Co-Authored-By:` trailers, no "Generated with Claude Code" footers, no
-  attribution to any agent or tool. Commit messages end with the message body.
+- Keep commit messages and PR bodies clean: a subject line and a body that
+  explains the change, and nothing after it. No trailers, no footers.
 - This repo is public. Nothing in it — code, comments, docs, commit metadata —
   may carry a real name, personal email, or account handle other than
   `our8bitfuture`.
