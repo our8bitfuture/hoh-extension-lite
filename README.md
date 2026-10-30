@@ -1,6 +1,6 @@
 # HoH Token & API Console
 
-A small Chrome extension for [Heroes of History](https://heroesofhistorygame.com)
+A small Chrome extension for [Heroes of History](https://www.heroesgame.com)
 players who want to work with their **own** game data.
 
 Click the toolbar button and you get two things:
@@ -15,7 +15,7 @@ browser, kept in extension storage, and used only for calls you ask for.
 
 ```
  ● session captured
- un1.heroesofhistorygame.com · client 1.53.3 · captured 7:32:20 PM
+ un1.heroesgame.com · client 1.53.3 · captured 7:32:20 PM
 
  [        Copy token        ]
  [    Open API console      ]
@@ -51,7 +51,7 @@ in JSON when asked to, which is why the responses are readable.
 - `storage` — keep the captured session and nothing else.
 - `declarativeNetRequestWithHostAccess` — one session rule that sets `Origin`
   and `Referer` on the extension's own requests to the game API.
-- `https://*.heroesofhistorygame.com/*` — the game, and only the game.
+- `https://*.heroesgame.com/*` — the game, and only the game.
 
 There is no `tabs`, no `scripting`, no remote code, no analytics, no server.
 
