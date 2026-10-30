@@ -8,7 +8,7 @@
     "declarativeNetRequestWithHostAccess"
   ],
   "host_permissions": [
-    "https://*.heroesofhistorygame.com/*"
+    "https://*.heroesgame.com/*"
   ],
   "background": {
     "service_worker": "src/background.js",
@@ -33,12 +33,12 @@
   "content_scripts": [
     {
       "world": "MAIN",
-      "matches": ["https://*.heroesofhistorygame.com/*"],
+      "matches": ["https://*.heroesgame.com/*"],
       "run_at": "document_start",
       "js": ["src/inject.js"]
     },
     {
-      "matches": ["https://*.heroesofhistorygame.com/*"],
+      "matches": ["https://*.heroesgame.com/*"],
       "run_at": "document_start",
       "js": ["src/content.js"]
     }

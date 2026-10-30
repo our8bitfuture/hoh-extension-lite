@@ -14,7 +14,7 @@ import { SESSION_KEY, fromBase64, splitBase64, toBase64, B64_CHUNK_CHARS } from 
 const ORIGIN_RULE_ID = 1;
 const TAB_ID_NONE = -1; // chrome.tabs.TAB_ID_NONE
 
-/** The page origin the game client itself uses, e.g. https://un0.heroesofhistorygame.com */
+/** The page origin the game client itself uses, e.g. https://un0.heroesgame.com */
 const gameOriginFor = (session) => {
   if (session.pageOrigin) return session.pageOrigin;
   // API host un1/zz1, page host un0/zz0.
@@ -40,7 +40,7 @@ const syncOriginRule = async (origin) => {
           ],
         },
         condition: {
-          requestDomains: ["heroesofhistorygame.com"],
+          requestDomains: ["heroesgame.com"],
           urlFilter: "/game/",
           resourceTypes: ["xmlhttprequest"],
           // Only our own requests — the game page's requests come from a tab.
@@ -52,6 +52,27 @@ const syncOriginRule = async (origin) => {
 
   appliedOrigin = origin;
 };
+
+// --- domain move ------------------------------------------------------------
+// The game moved from heroesofhistorygame.com to heroesgame.com. A session
+// captured before that names hosts this extension can no longer reach, so it is
+// pointed at the same hosts on the new domain. Its token and client version may
+// still be stale; the next game load replaces them.
+
+const toNewDomain = (origin) =>
+  origin.replace(/^(https:\/\/[^/]+)\.heroesofhistorygame\.com$/, "$1.heroesgame.com");
+
+const migrateSession = async () => {
+  const stored = await chrome.storage.local.get(SESSION_KEY);
+  const session = stored[SESSION_KEY];
+  if (!session) return;
+
+  const migrated = { ...session, apiBase: toNewDomain(session.apiBase) };
+  if (session.pageOrigin) migrated.pageOrigin = toNewDomain(session.pageOrigin);
+  await chrome.storage.local.set({ [SESSION_KEY]: migrated });
+};
+
+chrome.runtime.onInstalled.addListener(migrateSession);
 
 // --- oversized bodies -------------------------------------------------------
 // A single extension message tops out at 64 MiB and /game/gamedesign is bigger
