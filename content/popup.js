@@ -1,4 +1,4 @@
-import { SESSION_KEY } from "../src/shared.js";
+import { SESSION_KEY, describeSession } from "../src/shared.js";
 
 const el = (id) => document.getElementById(id);
 
@@ -7,23 +7,11 @@ let session = null;
 
 const render = (captured) => {
   session = captured;
-
-  if (!session) {
-    el("dot").className = "dot bad";
-    el("stateText").textContent = "no session yet";
-    el("detail").textContent = "open the game in a tab and let it load";
-    el("copyButton").disabled = true;
-    return;
-  }
-
-  el("dot").className = "dot ok";
-  el("stateText").textContent = "session captured";
-  el("detail").textContent = [
-    session.apiBase.replace(/^https:\/\//, ""),
-    `client ${session.clientVersion}`,
-    `captured ${new Date(session.capturedAt).toLocaleTimeString()}`,
-  ].join(" · ");
-  el("copyButton").disabled = false;
+  const status = describeSession(session);
+  el("dot").className = `dot ${status.tone}`;
+  el("stateText").textContent = status.label;
+  el("detail").textContent = status.detail;
+  el("copyButton").disabled = !session;
 };
 
 const onCopy = async () => {

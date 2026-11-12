@@ -38,6 +38,7 @@ body {
   font-size: 11px;
 }
 .chip.ok { color: #7fbf7f; border-color: #33553b; }
+.chip.warn { color: #d9bf7f; border-color: #554a33; }
 .chip.bad { color: #d98a8a; border-color: #553336; }
 .muted { color: var(--muted); }
 

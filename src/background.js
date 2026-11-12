@@ -11,14 +11,16 @@
 
 import { SESSION_KEY, fromBase64, splitBase64, toBase64, B64_CHUNK_CHARS } from "./shared.js";
 
+/** The one place the game's domain lives outside manifest.json. */
+const GAME_DOMAIN = "heroesgame.com";
+
 const ORIGIN_RULE_ID = 1;
 const TAB_ID_NONE = -1; // chrome.tabs.TAB_ID_NONE
 
-/** The page origin the game client itself uses, e.g. https://un0.heroesgame.com */
+/** The origin the game client itself sends from. */
 const gameOriginFor = (session) => {
-  if (session.pageOrigin) return session.pageOrigin;
-  // API host un1/zz1, page host un0/zz0.
-  return session.apiBase.replace(/^https:\/\/(un|zz)\d/, (_, prefix) => `https://${prefix}0`);
+  // The initiator of the captured request: the page (or frame) the client runs in.
+  return session.pageOrigin || session.apiBase;
 };
 
 let appliedOrigin = null;
@@ -40,7 +42,7 @@ const syncOriginRule = async (origin) => {
           ],
         },
         condition: {
-          requestDomains: ["heroesgame.com"],
+          requestDomains: [GAME_DOMAIN],
           urlFilter: "/game/",
           resourceTypes: ["xmlhttprequest"],
           // Only our own requests — the game page's requests come from a tab.
@@ -53,26 +55,76 @@ const syncOriginRule = async (origin) => {
   appliedOrigin = origin;
 };
 
-// --- domain move ------------------------------------------------------------
-// The game moved from heroesofhistorygame.com to heroesgame.com. A session
-// captured before that names hosts this extension can no longer reach, so it is
-// pointed at the same hosts on the new domain. Its token and client version may
-// still be stale; the next game load replaces them.
+// --- session capture --------------------------------------------------------
+// The session is read off the game's own requests as the browser sends them,
+// rather than by hooking the page's XHR/fetch. That sees every request the
+// client makes — from the top page, an iframe or a worker, over XHR or fetch —
+// so a client rebuild does not quietly stop capture while an old session sits
+// in storage looking healthy.
+//
+// Every X-* header the client sends is kept and replayed, so a header the game
+// starts to require in a later patch comes along without a code change. Only
+// the per-call ones are regenerated.
 
-const toNewDomain = (origin) =>
-  origin.replace(/^(https:\/\/[^/]+)\.heroesofhistorygame\.com$/, "$1.heroesgame.com");
+const PER_CALL_HEADERS = new Set(["x-request-id", "x-action-at"]);
+const CAPTURED_HEADERS = /^(x-|authorization$)/;
+/** How often a still-valid session has its last-seen time rewritten. */
+const SEEN_WRITE_MS = 60000;
 
-const migrateSession = async () => {
-  const stored = await chrome.storage.local.get(SESSION_KEY);
-  const session = stored[SESSION_KEY];
-  if (!session) return;
+let lastSignature = null;
+let lastWrite = 0;
 
-  const migrated = { ...session, apiBase: toNewDomain(session.apiBase) };
-  if (session.pageOrigin) migrated.pageOrigin = toNewDomain(session.pageOrigin);
-  await chrome.storage.local.set({ [SESSION_KEY]: migrated });
+const captureSession = async (details) => {
+  // Our own calls carry the token too; the game's are the source of truth.
+  if (details.initiator && details.initiator.startsWith("chrome-extension://")) return;
+
+  const url = new URL(details.url);
+  if (!url.pathname.startsWith("/game/")) return; // login, chat and assets carry other tokens
+
+  const headers = {};
+  for (const { name, value } of details.requestHeaders || []) {
+    const key = name.toLowerCase();
+    if (CAPTURED_HEADERS.test(key) && !PER_CALL_HEADERS.has(key) && value !== undefined) {
+      headers[key] = value;
+    }
+  }
+  if (!headers["x-auth-token"]) return;
+
+  const now = Date.now();
+  const signature = JSON.stringify([url.origin, headers]);
+  if (signature === lastSignature && now - lastWrite < SEEN_WRITE_MS) return;
+
+  const session = {
+    authToken: headers["x-auth-token"],
+    clientVersion: headers["x-clientversion"] || "?",
+    headers,
+    apiBase: url.origin,
+    pageOrigin: details.initiator || null,
+    seenAt: new Date(now).toISOString(),
+  };
+  if (signature !== lastSignature) session.capturedAt = session.seenAt;
+  else {
+    const stored = (await chrome.storage.local.get(SESSION_KEY))[SESSION_KEY];
+    session.capturedAt = (stored && stored.capturedAt) || session.seenAt;
+  }
+
+  lastSignature = signature;
+  lastWrite = now;
+  await chrome.storage.local.set({ [SESSION_KEY]: session });
 };
 
-chrome.runtime.onInstalled.addListener(migrateSession);
+chrome.webRequest.onSendHeaders.addListener(
+  (details) => {
+    captureSession(details).catch((err) => console.warn("[hoh-lite] could not store the session", err));
+  },
+  { urls: [`https://*.${GAME_DOMAIN}/game/*`] },
+  ["requestHeaders"]
+);
+
+// A session from before an update was captured under whatever the game looked
+// like then. Drop it rather than guess at migrating it; the next game load
+// captures a fresh one.
+chrome.runtime.onInstalled.addListener(() => chrome.storage.local.remove(SESSION_KEY));
 
 // --- oversized bodies -------------------------------------------------------
 // A single extension message tops out at 64 MiB and /game/gamedesign is bigger
@@ -116,15 +168,12 @@ const callGameApi = async (request) => {
   }
 
   const headers = {
+    // Whatever the client itself sent: token, client version, platform, and
+    // anything a later patch adds.
+    ...session.headers,
     // The game asks for protobuf; the server honours JSON on the same endpoints.
     Accept: request.accept || "application/json",
     "Content-Type": "application/x-protobuf",
-    Authorization: "Basic",
-    "X-AUTH-TOKEN": session.authToken,
-    "X-ClientVersion": session.clientVersion,
-    "X-OS": "Browser",
-    "X-Platform": "Browser",
-    "X-AppStore": "None",
     // Must be unique per call, or the server replays the previous response.
     "X-Request-Id": crypto.randomUUID(),
     "X-Action-At": new Date().toISOString(),
@@ -135,6 +184,7 @@ const callGameApi = async (request) => {
   const buffer = await response.arrayBuffer();
 
   const meta = {
+    authToken: session.authToken, // so a rejection is pinned to the token that earned it
     ok: response.ok,
     status: response.status,
     contentType: response.headers.get("Content-Type") || "",

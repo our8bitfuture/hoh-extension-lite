@@ -5,6 +5,53 @@
 
 export const SESSION_KEY = "hohSession";
 
+// --- session status ---------------------------------------------------------
+// Having a session in storage is not the same as having a working one. The
+// status says which of the two it is, so a dead token never shows up green.
+
+/** No game request carried this session for this long: probably closed or replaced. */
+const QUIET_MS = 30 * 60 * 1000;
+
+const ago = (iso) => {
+  const minutes = Math.round((Date.now() - new Date(iso).getTime()) / 60000);
+  if (minutes < 1) return "just now";
+  if (minutes < 60) return `${minutes} min ago`;
+  const hours = Math.round(minutes / 60);
+  if (hours < 48) return `${hours} h ago`;
+  return `${Math.round(hours / 24)} days ago`;
+};
+
+/** {tone: "ok"|"warn"|"bad", label, detail} for the popup and the console. */
+export const describeSession = (session) => {
+  if (!session) {
+    return { tone: "bad", label: "no session yet", detail: "open the game in a tab and let it load" };
+  }
+  const seen = session.seenAt || session.capturedAt;
+  const where = `${session.apiBase.replace(/^https:\/\//, "")} · client ${session.clientVersion}`;
+  if (session.rejected) {
+    return {
+      tone: "bad",
+      label: "session rejected",
+      detail: `the server turned this token down ${ago(session.rejected)} — reload the game tab`,
+    };
+  }
+  if (Date.now() - new Date(seen).getTime() > QUIET_MS) {
+    return {
+      tone: "warn",
+      label: "session may be stale",
+      detail: `${where} · last used by the game ${ago(seen)}`,
+    };
+  }
+  return { tone: "ok", label: "session live", detail: `${where} · seen ${ago(seen)}` };
+};
+
+/** Flag the stored session as dead, unless a fresh one has replaced it meanwhile. */
+const markRejected = async (authToken) => {
+  const session = (await chrome.storage.local.get(SESSION_KEY))[SESSION_KEY];
+  if (!session || session.authToken !== authToken) return;
+  await chrome.storage.local.set({ [SESSION_KEY]: { ...session, rejected: new Date().toISOString() } });
+};
+
 // --- protobuf request bodies ------------------------------------------------
 // The game's request bodies are protobuf. The ones we need are one or two
 // scalar fields, so hand-encoding beats shipping a protobuf runtime.
@@ -209,6 +256,8 @@ export const callApi = async (path, bodyBytes, { accept = "application/json" } =
   const started = performance.now();
 
   const result = unwrap(await chrome.runtime.sendMessage({ type: "hohFetch", request }));
+  const rejected = () => markRejected(result.authToken);
+  if (result.status === 401 || result.status === 403) await rejected();
   const bytes = await readBody(result);
   const ms = Math.round(performance.now() - started);
   const meta = { status: result.status, contentType: result.contentType, bytes, ms };
@@ -227,6 +276,7 @@ export const callApi = async (path, bodyBytes, { accept = "application/json" } =
   }
 
   if (json.errorType === "SoftErrorType_REQUEST_SESSION_EXPIRED") {
+    await rejected();
     throw new Error("Session expired. Reload the game tab to get a fresh token.");
   }
   if (json.errorType) throw new Error(`${path} failed: ${json.errorType}`);
