@@ -2,6 +2,7 @@ import {
   ENDPOINTS,
   SESSION_KEY,
   callApi,
+  describeSession,
   downloadJson,
   encodeFields,
   endpointById,
@@ -22,22 +23,12 @@ let session = null;
 
 const renderSession = (captured) => {
   session = captured;
+  const status = describeSession(session);
   const chip = el("sessionChip");
-  if (!session) {
-    chip.textContent = "no session";
-    chip.className = "chip bad";
-    el("sessionDetail").textContent = "open the game in a tab and let it load";
-    el("copyTokenButton").disabled = true;
-    return;
-  }
-  chip.textContent = "session captured";
-  chip.className = "chip ok";
-  el("sessionDetail").textContent = [
-    session.apiBase.replace(/^https:\/\//, ""),
-    `client ${session.clientVersion}`,
-    `captured ${new Date(session.capturedAt).toLocaleTimeString()}`,
-  ].join(" · ");
-  el("copyTokenButton").disabled = false;
+  chip.textContent = status.label;
+  chip.className = `chip ${status.tone}`;
+  el("sessionDetail").textContent = status.detail;
+  el("copyTokenButton").disabled = !session;
 };
 
 const onCopyToken = async () => {
@@ -223,6 +214,8 @@ document.addEventListener("DOMContentLoaded", async () => {
 
   const stored = await chrome.storage.local.get(SESSION_KEY);
   renderSession(stored[SESSION_KEY] || null);
+  // The tab stays open for a while; keep "seen 3 min ago" and staleness current.
+  setInterval(() => renderSession(session), 60000);
   chrome.storage.onChanged.addListener((changes, area) => {
     if (area === "local" && changes[SESSION_KEY]) renderSession(changes[SESSION_KEY].newValue || null);
   });

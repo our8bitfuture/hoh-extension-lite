@@ -43,6 +43,7 @@ body {
   flex: none;
 }
 .dot.ok { background: #6fbf73; }
+.dot.warn { background: #d9b45f; }
 .dot.bad { background: #cf6f75; }
 
 .btn {
